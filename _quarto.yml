@@ -2,7 +2,7 @@ project:
   type: website
 
 website:
-  title: "My Quarto Site"
+  title: "Synaptic"
   navbar:
     left:
       - href: index.qmd
