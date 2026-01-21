@@ -7,11 +7,32 @@
     "text": "This page documents the QC workflow.\n\nsessionInfo()\n\nR version 4.5.0 (2025-04-11)\nPlatform: aarch64-apple-darwin20\nRunning under: macOS 26.2\n\nMatrix products: default\nBLAS:   /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRblas.0.dylib \nLAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1\n\nlocale:\n[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8\n\ntime zone: America/New_York\ntzcode source: internal\n\nattached base packages:\n[1] stats     graphics  grDevices utils     datasets  methods   base     \n\nloaded via a namespace (and not attached):\n [1] htmlwidgets_1.6.4 compiler_4.5.0    fastmap_1.2.0     cli_3.6.5        \n [5] tools_4.5.0       htmltools_0.5.8.1 yaml_2.3.10       rmarkdown_2.30   \n [9] knitr_1.50        jsonlite_2.0.0    xfun_0.53         digest_0.6.37    \n[13] rlang_1.1.6       evaluate_1.0.5"
   },
   {
-    "objectID": "about.html",
-    "href": "about.html",
-    "title": "About",
+    "objectID": "scripts/Additional-ATRT_CellStates.html",
+    "href": "scripts/Additional-ATRT_CellStates.html",
+    "title": "00 - ATRT Cell States",
     "section": "",
-    "text": "About this site\n\n1 + 1\n\n[1] 2"
+    "text": "library(data.table)\nlibrary(filbinverse)\nlibrary(FNN)\nlibrary(glue)\nlibrary(igraph)\nlibrary(qs)\nlibrary(Seurat)\nlibrary(tidyverse)"
+  },
+  {
+    "objectID": "scripts/Additional-ATRT_CellStates.html#load-packages",
+    "href": "scripts/Additional-ATRT_CellStates.html#load-packages",
+    "title": "00 - ATRT Cell States",
+    "section": "",
+    "text": "library(data.table)\nlibrary(filbinverse)\nlibrary(FNN)\nlibrary(glue)\nlibrary(igraph)\nlibrary(qs)\nlibrary(Seurat)\nlibrary(tidyverse)"
+  },
+  {
+    "objectID": "scripts/Additional-ATRT_CellStates.html#preparing-environment",
+    "href": "scripts/Additional-ATRT_CellStates.html#preparing-environment",
+    "title": "00 - ATRT Cell States",
+    "section": "2 Preparing environment",
+    "text": "2 Preparing environment\n\nbase_dir &lt;- '/n/data1/dfci/pedonc/filbin/lab/users/cao385/Projects/Synaptic'\n\nout_dir &lt;- glue('{base_dir}/data/ATRT')\ndir.create(out_dir, recursive = T, showWarnings = F)"
+  },
+  {
+    "objectID": "scripts/Additional-ATRT_CellStates.html#loading-atrt-signatures",
+    "href": "scripts/Additional-ATRT_CellStates.html#loading-atrt-signatures",
+    "title": "00 - ATRT Cell States",
+    "section": "3 Loading ATRT signatures",
+    "text": "3 Loading ATRT signatures\n\nsignatures &lt;- openxlsx::read.xlsx(glue('{base_dir}/data/ATRT_Supplementary.xlsx'), sheet = 4) %&gt;% head(30) %&gt;% dplyr::select(-c('Unannotated', 'Immune.like')) %&gt;% as.list()\n\n\ndata_ATRT &lt;- readRDS(glue('{base_dir}/data/ATRT_malignant.rds'))\n\ndata_ATRT &lt;- AddModuleScore(\n  object = data_ATRT,\n  features = signatures,\n  name = 'program_features', \n  search = T\n)\ndata_ATRT@meta.data &lt;- data_ATRT@meta.data %&gt;% \n  rename_with(.fn = ~names(signatures), .cols = contains('program_features'))\n\nnmf_score_final_t &lt;- data_ATRT@meta.data %&gt;% dplyr::select(contains(names(signatures)))\nnmf_score_final_t &lt;- metagene_score_signature(nmf_score_final_t, length(signatures), 1)\ndata_ATRT &lt;- AddMetaData(data_ATRT, nmf_score_final_t$signature_1, col.name = 'Metaprogram')\n\np1 &lt;- ProportionPlot(data = data_ATRT@meta.data, x = 'sample', fill = 'Metaprogram', colors = filbin_palette(), plot_title = 'Scoring')\n\np2 &lt;- DimPlot(data_ATRT, reduction = 'umap.harmony', group.by = 'Metaprogram', cols = filbin_palette(), pt.size = 2) + seurat_theme() + labs(x = 'UMAP-1', y = 'UMAP-2', title = '')\n\npt &lt;- p1 + p2\nggsave(plot = pt, glue('{base_dir}/data/ATRT/Assignment.pdf'), width = 20, height = 8)\n\nqsave(data_ATRT, glue('{base_dir}/data/ATRT_malignant.qs'))"
   },
   {
     "objectID": "index.html",
@@ -19,6 +40,13 @@
     "title": "test",
     "section": "",
     "text": "This is a Quarto website.\nTo learn more about Quarto websites visit https://quarto.org/docs/websites.\n\n1 + 1\n\n[1] 2"
+  },
+  {
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About",
+    "section": "",
+    "text": "About this site\n\n1 + 1\n\n[1] 2"
   },
   {
     "objectID": "scripts/qc.html",

@@ -141,6 +141,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <a class="dropdown-item" href="../scripts/atac.html">
  <span class="dropdown-text">ATAC</span></a>
   </li>  
+        <li>
+    <a class="dropdown-item" href="../scripts/Additional-ATRT_CellStates.html">
+ <span class="dropdown-text">ATRT Cell States</span></a>
+  </li>  
     </ul>
   </li>
 </ul>
@@ -284,7 +288,7 @@ loaded via a namespace (and not attached):
     }
       var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
       var mailtoRegex = new RegExp(/^mailto:/);
-        var filterRegex = new RegExp('/' + window.location.host + '/');
+        var filterRegex = new RegExp("https:\/\/cbiagii\.github\.io\/test\/");
       var isInternal = (href) => {
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }
