@@ -1,0 +1,209 @@
+---
+title: "01-Pseudobulk PCA"
+author: "Carlos Biagi Jr"
+date: last-modified
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    number-sections: true
+    code-fold: false
+    code-tools: true
+    code-copy: true
+    smooth-scroll: true
+    link-external-newwindow: true
+    fig-cap-location: bottom
+    tbl-cap-location: top
+    fontsize: 1.05em
+    mainfont: system-ui
+    embed-resources: true
+execute:
+  eval: false
+  echo: true
+  warning: false
+  message: false
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+## Load packages
+
+```{r}
+library(edgeR)
+library(filbinverse)
+library(ggplot2)
+library(glue)
+library(Matrix)
+library(qs)
+library(Seurat)
+```
+
+## Preparing environment
+
+```{r}
+base_dir <- '/n/data1/dfci/pedonc/filbin/lab/users/cao385/Projects/Synaptic'
+
+## Loading custom functions
+source(glue('{base_dir}/Synaptic2024/scripts/resources/utils.R'))
+
+sample_col <- "sample"
+assay_use  <- "RNA"
+slot_use   <- "counts"
+min_cells_per_sample <- 20
+```
+
+## Loading Seurat object
+
+```{r}
+data <- qread(glue('{base_dir}/output/Integrated_noBatch.qs'))
+```
+
+## Filtering samples with few cells and pseudobulking
+
+```{r}
+DefaultAssay(data) <- assay_use
+
+counts <- GetAssayData(data, assay = assay_use, slot = slot_use)
+
+# Keep samples with enough cells
+tab <- table(data@meta.data[[sample_col]])
+keep_samples <- names(tab)[tab >= min_cells_per_sample]
+
+cells_keep <- rownames(data@meta.data)[data@meta.data[[sample_col]] %in% keep_samples]
+data2 <- subset(data, cells = cells_keep)
+
+counts2 <- GetAssayData(data2, assay = assay_use, slot = slot_use)
+sample_ids <- data2@meta.data[[sample_col]]
+
+# Sparse model matrix: cells -> sample membership
+mm <- sparse.model.matrix(~ 0 + sample_ids)
+colnames(mm) <- sub("^sample_ids", "", colnames(mm))
+
+# Pseudobulk: genes x samples (sum of counts)
+pb_counts <- counts2 %*% mm
+
+# Optional: clean column names
+colnames(pb_counts) <- make.names(colnames(pb_counts))
+```
+
+## Normalizing data
+
+```{r}
+dge <- DGEList(counts = pb_counts)
+dge <- calcNormFactors(dge, method = "TMM")
+
+# log2-CPM with prior count for stability
+pb_logcpm <- cpm(dge, log = TRUE, prior.count = 1)
+```
+
+## Filter and selection of genes
+
+```{r}
+gene_names <- rownames(pb_logcpm)
+
+ribosomal <- grepl("^RPS|^RPL", gene_names)
+
+# optional extras
+mito <- grepl("^MT-", gene_names)
+hb   <- grepl("^HB[AB]", gene_names)
+
+exclude <- ribosomal | mito | hb
+
+pb_logcpm_filt <- pb_logcpm[!exclude, ]
+
+n_hvg <- 2000
+
+# Choose variable genes across samples
+vars <- apply(pb_logcpm_filt, 1, var)
+hvg <- names(sort(vars, decreasing = TRUE))[seq_len(min(n_hvg, length(vars)))]
+```
+
+## Calculate PCA
+
+```{r}
+# PCA expects samples as rows
+pca <- prcomp(t(pb_logcpm[hvg, ]), center = TRUE, scale. = TRUE)
+
+var_exp <- (pca$sdev^2) / sum(pca$sdev^2) * 100
+pc1_pct <- round(var_exp[1], 1)
+pc2_pct <- round(var_exp[2], 1)
+
+# Data frame for plotting
+pca_df <- data.frame(
+  sample = rownames(pca$x),
+  PC1 = pca$x[, 1],
+  PC2 = pca$x[, 2],
+  PC3 = pca$x[, 3],
+  stringsAsFactors = FALSE
+)
+```
+
+## Plot by tumor_type
+
+```{r}
+tumor_col <- "tumor_type"  # <-- change this to your tumor type column
+
+# Build one-row-per-sample metadata table
+meta <- data2@meta.data[, c(sample_col, tumor_col), drop = FALSE]
+
+# If tumor type is constant per sample, take the most frequent value
+meta_sample <- aggregate(
+  meta[[tumor_col]],
+  by = list(sample = meta[[sample_col]]),
+  FUN = function(x) names(sort(table(x), decreasing = TRUE))[1]
+)
+colnames(meta_sample)[2] <- tumor_col
+meta_sample$sample <- make.names(meta_sample$sample)
+
+# Join to PCA df
+pca_df_2 <- merge(pca_df, meta_sample, by = "sample", all.x = TRUE)
+
+pca_df_2$tumor_type <- factor(pca_df_2$tumor_type, levels = names(colors_dataset_all))
+
+pt <- ggplot(pca_df_2, aes(x = PC1, y = PC2, color = .data[[tumor_col]])) +
+  geom_point(size = 3) +
+  scale_color_manual(values = colors_dataset_all) +
+  seurat_theme() +
+  labs(
+    x = paste0("PC1 (", pc1_pct, "%)"),
+    y = paste0("PC2 (", pc2_pct, "%)"),
+    color = 'Dataset'
+  )
+
+ggsave(plot = pt, filename = glue('{base_dir}/output/PCA_Samples-tumor_type.pdf'), width = 8, height = 5)
+```
+
+## Plot by tumor_type
+
+```{r}
+tumor_col <- "tumor_type2"  # <-- change this to your tumor type column
+
+# Build one-row-per-sample metadata table
+meta <- data2@meta.data[, c(sample_col, tumor_col), drop = FALSE]
+
+# If tumor type is constant per sample, take the most frequent value
+meta_sample <- aggregate(
+  meta[[tumor_col]],
+  by = list(sample = meta[[sample_col]]),
+  FUN = function(x) names(sort(table(x), decreasing = TRUE))[1]
+)
+colnames(meta_sample)[2] <- tumor_col
+meta_sample$sample <- make.names(meta_sample$sample)
+
+# Join to PCA df
+pca_df_2 <- merge(pca_df, meta_sample, by = "sample", all.x = TRUE)
+
+pca_df_2$tumor_type2 <- factor(pca_df_2$tumor_type2, levels = names(colors_dataset_study_v2))
+
+pt <- ggplot(pca_df_2, aes(x = PC1, y = PC2, color = .data[[tumor_col]])) +
+  geom_point(size = 3) +
+  scale_color_manual(values = colors_dataset_study_v2) +
+  seurat_theme() +
+  labs(x = paste0("PC1 (", pc1_pct, "%)"),
+       y = paste0("PC2 (", pc2_pct, "%)"),
+       color = 'Dataset')
+
+ggsave(plot = pt, filename = glue('{base_dir}/output/PCA_Samples-tumor_type2.pdf'), width = 8, height = 5)
+```
