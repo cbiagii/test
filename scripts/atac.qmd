@@ -1,0 +1,9 @@
+---
+title: "QC"
+---
+
+This page documents the QC workflow.
+
+```{r}
+sessionInfo()
+```
