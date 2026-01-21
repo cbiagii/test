@@ -13,6 +13,8 @@ website:
             text: QC
           - href: scripts/atac.qmd
             text: ATAC
+          - href: scripts/Additional-ATRT_CellStates.qmd
+            text: ATRT Cell States
 
 format:
   html:

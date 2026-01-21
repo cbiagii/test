@@ -1,0 +1,83 @@
+---
+title: "00 - ATRT Cell States"
+author: "Carlos Biagi Jr"
+date: last-modified
+format: 
+  html: 
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    number-sections: true
+    code-fold: false
+    code-tools: true
+    code-copy: true
+    smooth-scroll: true
+    link-external-newwindow: true
+    fig-cap-location: bottom
+    tbl-cap-location: top
+    fontsize: 1.05em
+    mainfont: system-ui
+    embed-resources: true
+execute:
+  eval: false
+  echo: true
+  warning: false
+  message: false
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+## Load packages
+
+```{r}
+library(data.table)
+library(filbinverse)
+library(FNN)
+library(glue)
+library(igraph)
+library(qs)
+library(Seurat)
+library(tidyverse)
+```
+
+## Preparing environment
+
+```{r}
+base_dir <- '/n/data1/dfci/pedonc/filbin/lab/users/cao385/Projects/Synaptic'
+
+out_dir <- glue('{base_dir}/data/ATRT')
+dir.create(out_dir, recursive = T, showWarnings = F)
+```
+
+## Loading ATRT signatures
+
+```{r}
+signatures <- openxlsx::read.xlsx(glue('{base_dir}/data/ATRT_Supplementary.xlsx'), sheet = 4) %>% head(30) %>% dplyr::select(-c('Unannotated', 'Immune.like')) %>% as.list()
+```
+
+```{r}
+data_ATRT <- readRDS(glue('{base_dir}/data/ATRT_malignant.rds'))
+
+data_ATRT <- AddModuleScore(
+  object = data_ATRT,
+  features = signatures,
+  name = 'program_features', 
+  search = T
+)
+data_ATRT@meta.data <- data_ATRT@meta.data %>% 
+  rename_with(.fn = ~names(signatures), .cols = contains('program_features'))
+
+nmf_score_final_t <- data_ATRT@meta.data %>% dplyr::select(contains(names(signatures)))
+nmf_score_final_t <- metagene_score_signature(nmf_score_final_t, length(signatures), 1)
+data_ATRT <- AddMetaData(data_ATRT, nmf_score_final_t$signature_1, col.name = 'Metaprogram')
+
+p1 <- ProportionPlot(data = data_ATRT@meta.data, x = 'sample', fill = 'Metaprogram', colors = filbin_palette(), plot_title = 'Scoring')
+
+p2 <- DimPlot(data_ATRT, reduction = 'umap.harmony', group.by = 'Metaprogram', cols = filbin_palette(), pt.size = 2) + seurat_theme() + labs(x = 'UMAP-1', y = 'UMAP-2', title = '')
+
+pt <- p1 + p2
+ggsave(plot = pt, glue('{base_dir}/data/ATRT/Assignment.pdf'), width = 20, height = 8)
+
+qsave(data_ATRT, glue('{base_dir}/data/ATRT_malignant.qs'))
+```
